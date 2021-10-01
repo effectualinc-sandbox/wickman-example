@@ -166,7 +166,7 @@ Resources:
           Action:
           - sts:AssumeRole
       ManagedPolicyArns:
-      - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagenstanceCore
       - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
 
         rEc2p2pRole:
