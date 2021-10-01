@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: analytics2020 logicsource Load-Balancer Resource Deployment -ross rename
+Description: analytics2021 logicsource Load-Balancer Resource Deployment
 
 Metadata:
   "AWS::CloudFormation::Interface":
@@ -73,7 +73,7 @@ Parameters:
   pPublicHostedZoneId:
     Description: "Required: Enter the application public hosted zone name. i.e example.com "
     Type: String
-    Default: Z09500181MLH16HHJH2IB # logicsource.com
+    Default: Z09615923LXWH7GC7KJVH
     AllowedValues:
       - "Z09500181MLH16HHJH2IB"
       - "Z09615923LXWH7GC7KJVH"
@@ -88,8 +88,8 @@ Parameters:
     Description: "Required: Enter the application domain name i.e mywebsite.example.com "
     Type: String
     AllowedValues:
-      - "analytics2020.logicsource.net"
-      - "analytics2020.logicsource.com"
+      - "analytics2021.logicsource.net"
+      - "analytics2021.logicsource.com"
   pVPC:
     Description: VPC Id for deployment
     Type: AWS::EC2::VPC::Id
@@ -100,7 +100,7 @@ Parameters:
     Type: String
     Description: "ACM ARN"
     AllowedValues:
-      - "arn:aws:acm:us-east-1:460582878643:certificate/15250858-2c56-43ef-a273-7e6fc8dcef08"
+      - "arn:aws:acm:us-east-1:460582878643:certificate/152508dcef08"
       - "arn:aws:acm:us-west-2:460582878643:certificate/a2da1951-c6a1-4505-8bf2-f03fccec491c"
   pEnvironment:
     Type: String
@@ -275,19 +275,26 @@ Resources:
       ListenerArn: !Ref Listener443
       Priority: 10
 
-  ListenerRule2:
+  # Define listener rules
+  ListenerRule27:
     Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
     Properties:
       Actions:
-        - Type: forward
-          TargetGroupArn: !Ref TargetGroup1
+        - Type: redirect
+          RedirectConfig:
+            Host: "#{host}"
+            Path: "/app/portal"
+            Port: "44333"
+            Protocol: HTTPS
+            Query: "#{query}"
+            StatusCode: HTTP_302
       Conditions:
-        - Field: host-header
-          HostHeaderConfig:
+        - Field: path-pattern
+          PathPatternConfig:
             Values:
-              - !Sub "${pHostName}"
+              - "/"
       ListenerArn: !Ref Listener443
-      Priority: 20
+      Priority: 10
 
   # Define target groups
   TargetGroup1:
@@ -370,7 +377,7 @@ Resources:
             reason: "Explicit Egress not required"
     Properties:
       VpcId: !Ref pVPC
-      GroupDescription: analytics2020 ALB Security Group
+      GroupDescription: analytics2021 ALB Security Group
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-LoadBalancer
