@@ -1,0 +1,427 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: analytics2020 logicsource Load-Balancer Resource Deployment -ross rename
+
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups:
+      - Label:
+          default: Template Details
+        Parameters:
+          - pGitUrl
+      - Label:
+          default: Network configuration
+        Parameters:
+          - pVPC
+          - pSubnet1
+          - pSubnet2
+      - Label:
+          default: ALB configuration
+        Parameters:
+          - pHostName
+          - pTagKeyName
+          - pTagValue
+          - pEnvironment
+          - pTargetInstanceId1
+          - pAcmArn
+          - pPublicHostedZoneId
+          - pPrivateHostedZoneId
+
+    ParameterLabels:
+      pVPC:
+        default: VPC
+      pSubnet1:
+        default: Subnet 1
+      pSubnet2:
+        default: Subnet 2
+      pTagKeyName:
+        default: Tag Key Name
+      pTagValue:
+        default: Tag Value
+      pHostName:
+        default: Host Name
+      pTargetInstanceId1:
+        default: Target Instance ID 1
+      pEnvironment:
+        default: Environment
+      pAcmArn:
+        default: ACM ARN
+      pPublicHostedZoneId:
+        default: Public Hosted Zone ID
+      pPrivateHostedZoneId:
+        default: Private Hosted Zone ID
+      pGitUrl:
+        default: Code URL
+
+Parameters:
+  pSubnet1:
+    Description:
+      The subnet to launch attach resource to. It must be part of the VPC
+      chosen above.
+    Type: AWS::EC2::Subnet::Id
+  pSubnet2:
+    Description:
+      The subnet to launch attach resource to. It must be part of the VPC
+      chosen above.
+    Type: AWS::EC2::Subnet::Id
+  pTagKeyName:
+    Description: "Required: Enter the name of the key for the key-value. You'll enter the actual value of the tag next."
+    Type: String
+  pTagValue:
+    Description: "Required: Enter the tag you'd like applied to the instance."
+    Type: String
+  pPublicHostedZoneId:
+    Description: "Required: Enter the application public hosted zone name. i.e example.com "
+    Type: String
+    Default: Z09500181MLH16HHJH2IB # logicsource.com
+    AllowedValues:
+      - "Z09500181MLH16HHJH2IB"
+      - "Z09615923LXWH7GC7KJVH"
+  pPrivateHostedZoneId:
+    Description: "Required: Enter the application private hosted zone name. i.e example.com "
+    Type: String
+    Default: Z083825336G59SMBINL8P # logicsource.com
+    AllowedValues:
+      - "Z083825336G59SMBINL8P"
+      - "Z00991091O8RSAGLDCPFT"
+  pHostName:
+    Description: "Required: Enter the application domain name i.e mywebsite.example.com "
+    Type: String
+    AllowedValues:
+      - "analytics2020.logicsource.net"
+      - "analytics2020.logicsource.com"
+  pVPC:
+    Description: VPC Id for deployment
+    Type: AWS::EC2::VPC::Id
+  pTargetInstanceId1:
+    Type: String
+    Description: "Instance ID 1 to target"
+  pAcmArn:
+    Type: String
+    Description: "ACM ARN"
+    AllowedValues:
+      - "arn:aws:acm:us-east-1:460582878643:certificate/15250858-2c56-43ef-a273-7e6fc8dcef08"
+      - "arn:aws:acm:us-west-2:460582878643:certificate/a2da1951-c6a1-4505-8bf2-f03fccec491c"
+  pEnvironment:
+    Type: String
+    Description: "Environment tag representing production, development, qa, staging, or dr"
+    AllowedValues:
+      - production
+      - development
+      - qa
+      - stage
+      - dr
+    Default: dr
+  pGitUrl:
+    Type: String
+    Description: The Project URL for the template
+    Default: "https://github.com/effectualinc/logicsource-analytics"
+
+Mappings:
+  ALBAccountMap:
+    us-east-1:
+      accountId: "127311923021"
+    us-east-2:
+      accountId: "033677994240"
+    us-west-1:
+      accountId: "027434742980"
+    us-west-2:
+      accountId: "797873946194"
+
+Rules:
+  SubnetInVPC:
+    Assertions:
+      - Assert: !EachMemberIn
+          - !ValueOfAll
+            - AWS::EC2::Subnet::Id
+            - VpcId
+          - !RefAll "AWS::EC2::VPC::Id"
+        AssertDescription: All subnets must in the VPC
+
+Resources:
+  # Access Logs Bucket
+  ALBAccessLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub "analytics2020-${AWS::Region}-${AWS::AccountId}"
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: 28
+            Id: ExpirationInDays28
+            Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-LoadBalancer
+        - Key: Customer
+          Value: LogicSource
+        - Key: Environment
+          Value: !Ref pEnvironment
+        - Key: !Ref pTagKeyName
+          Value: !Ref pTagValue
+        - Key: Code URI
+          Value: !Ref pGitUrl
+
+  ALBAccessLogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref "ALBAccessLogsBucket"
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:PutObject
+            Effect: Allow
+            Principal:
+              AWS:
+                - !FindInMap
+                  - ALBAccountMap
+                  - !Ref "AWS::Region"
+                  - accountId
+            Resource:
+              - !Sub "${ALBAccessLogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+
+  # Define Load-balancer
+  LoadBalancer:
+    DependsOn:
+      - ALBAccessLogsBucketPolicy
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: lsi-analytics2020-alb
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: "true"
+        - Key: access_logs.s3.bucket
+          Value: !Ref ALBAccessLogsBucket
+        - Key: idle_timeout.timeout_seconds
+          Value: '300'
+      SecurityGroups:
+        - !Ref rSecurityGroup
+      Scheme: internet-facing
+      Subnets:
+        - !Ref pSubnet1
+        - !Ref pSubnet2
+      Type: application
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-LoadBalancer
+        - Key: Customer
+          Value: LogicSource
+        - Key: Environment
+          Value: !Ref pEnvironment
+        - Key: !Ref pTagKeyName
+          Value: !Ref pTagValue
+        - Key: Code URI
+          Value: !Ref pGitUrl
+
+  # Define listeners
+  Listener443:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      Certificates:
+        - CertificateArn: !Ref pAcmArn
+      DefaultActions:
+        - FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: We are sorry but this public LogicSource application is undergoing maintenance.
+            StatusCode: "200"
+          Order: 10
+          Type: fixed-response
+      LoadBalancerArn: !Ref "LoadBalancer"
+      Port: 443
+      Protocol: HTTPS
+  Listener80:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+        - Order: 10
+          RedirectConfig:
+            Host: "#{host}"
+            Path: /#{path}
+            Port: "443"
+            Protocol: HTTPS
+            Query: "#{query}"
+            StatusCode: HTTP_301
+          Type: redirect
+      LoadBalancerArn: !Ref "LoadBalancer"
+      Port: 80
+      Protocol: HTTP
+
+  # Define listener rules
+  ListenerRule1:
+    Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
+    Properties:
+      Actions:
+        - Type: redirect
+          RedirectConfig:
+            Host: "#{host}"
+            Path: "/app/portal"
+            Port: "443"
+            Protocol: HTTPS
+            Query: "#{query}"
+            StatusCode: HTTP_302
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig:
+            Values:
+              - "/"
+      ListenerArn: !Ref Listener443
+      Priority: 10
+
+  ListenerRule2:
+    Type: "AWS::ElasticLoadBalancingV2::ListenerRule"
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup1
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Sub "${pHostName}"
+      ListenerArn: !Ref Listener443
+      Priority: 20
+
+  # Define target groups
+  TargetGroup1:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: analytics2020-alb-httpsv3
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref pVPC
+      HealthCheckPort: "8080"
+      HealthCheckProtocol: "HTTP"
+      HealthCheckPath: "/app/portal"
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: 'false'
+      Targets:
+        - Id: !Ref pTargetInstanceId1
+          Port: 8080
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-TargetGroup1
+        - Key: Customer
+          Value: LogicSource
+        - Key: Environment
+          Value: !Ref pEnvironment
+        - Key: !Ref pTagKeyName
+          Value: !Ref pTagValue
+        - Key: Code URI
+          Value: !Ref pGitUrl
+
+  # Define Recordset
+  PublicRecordSets:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref "pPublicHostedZoneId"
+      Name: !Sub "${pHostName}"
+      ResourceRecords:
+        - !GetAtt "LoadBalancer.DNSName"
+      TTL: 300
+      Type: CNAME
+
+  PrivateRecordSets:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref "pPrivateHostedZoneId"
+      Name: !Sub "${pHostName}"
+      ResourceRecords:
+        - !GetAtt "LoadBalancer.DNSName"
+      TTL: 300
+      Type: CNAME
+
+  # Define load balancer alarms
+  LoadBalancerAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      Namespace: AWS/ApplicationELB
+      AlarmDescription: !Sub "CID*218 - *P2* - Analytics 2020 ALB Unhealthy Hosts ${AWS::Region}"
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt "LoadBalancer.LoadBalancerFullName"
+        - Name: TargetGroup
+          Value: !GetAtt "TargetGroup1.TargetGroupFullName"
+      MetricName: UnHealthyHostCount
+      Period: 120
+      Statistic: Average
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      EvaluationPeriods: 1
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:Opsgenie"
+      OKActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:Opsgenie"
+
+  rSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F1000
+            reason: "Explicit Egress not required"
+    Properties:
+      VpcId: !Ref pVPC
+      GroupDescription: analytics2020 ALB Security Group
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-LoadBalancer
+        - Key: Customer
+          Value: LogicSource
+        - Key: Environment
+          Value: !Ref pEnvironment
+        - Key: !Ref pTagKeyName
+          Value: !Ref pTagValue
+        - Key: Code URI
+          Value: !Ref pGitUrl
+
+  ExternalLogicSourceIngress443:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      CidrIp: "0.0.0.0/0"
+      Description: Logicsource ingress on External ALB for port 80
+      FromPort: 80
+      GroupId: !Ref rSecurityGroup
+      IpProtocol: tcp
+      ToPort: 80
+  ExternalLogicSourceIngress80:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      CidrIp: "0.0.0.0/0"
+      Description: Logicsource ingress on External ALB for port 443
+      FromPort: 443
+      GroupId: !Ref rSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+
+Outputs:
+  LoadBalancer:
+    Description: External ALB Arn
+    Export:
+      Name: !Sub "${AWS::StackName}:LoadBalancerArn"
+    Value: !Ref LoadBalancer
+  ListenerArn:
+    Description: External Load Balancer SSL Listener Arn
+    Export:
+      Name: !Sub "${AWS::StackName}:LBListenerArn"
+    Value: !Ref Listener443
+  TargetGroup1:
+    Value: !Ref TargetGroup1
+  ListenerRule1Arn:
+    Value: !Ref ListenerRule1
+  LoadBalancersAssociatedWithTargetGroup1:
+    Description: LoadBalancers associated with TargetGroup
+    Value: !Select
+      - "0"
+      - !GetAtt "TargetGroup1.LoadBalancerArns"
+  TargetGroupFullName1:
+    Description: FullName of TargetGroup1
+    Value: !GetAtt "TargetGroup1.TargetGroupFullName"
