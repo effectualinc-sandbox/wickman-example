@@ -133,132 +133,6 @@ Resources:
       GroupDescription: P2P security group
       VpcId: !Ref pVPC
       SecurityGroupIngress:
-        - IpProtocol: TCP
-          CidrIp: 10.1.0.0/16
-          FromPort: 443
-          ToPort: 443
-          Description: Inbound HTTPS from VPC
-        - IpProtocol: TCP
-          CidrIp: 10.1.0.0/16
-          FromPort: 80
-          ToPort: 80
-          Description: Inbound HTTP from VPC
-        - IpProtocol: TCP
-          CidrIp: 10.1.0.0/16
-          FromPort: 22
-          ToPort: 22
-          Description: Inbound HTTP from VPC
-        - IpProtocol: TCP
-          CidrIp: 192.168.32.0/22
-          FromPort: 443
-          ToPort: 443
-          Description: Inbound HTTPS from Workspaces VPC
-        - IpProtocol: TCP
-          CidrIp: 192.168.32.0/22
-          FromPort: 80
-          ToPort: 80
-          Description: Inbound HTTP from Workspaces VPC
-        - IpProtocol: TCP
-          CidrIp: 192.168.32.0/22
-          FromPort: 22
-          ToPort: 22
-        - IpProtocol: TCP
-          CidrIp: 192.168.32.0/22
-          FromPort: 38443
-          ToPort: 38443
-          Description: Inbound HTTPS from Workspaces VPC
-        - IpProtocol: '-1'
-          CidrIp: 192.168.32.0/22
-          FromPort: '-1'
-          ToPort: '-1'
-        - IpProtocol: TCP
-          CidrIp: 192.168.32.0/22
-          FromPort: 38080
-          ToPort: 38080
-          Description: Inbound HTTP from Workspaces VPC
-        - IpProtocol: TCP
-          CidrIp: 192.168.32.0/22
-          FromPort: 18443
-          ToPort: 18443
-          Description: Inbound HTTPS from Workspaces VPC
-        - IpProtocol: TCP
-          CidrIp: 192.168.32.0/22
-          FromPort: 18080
-          ToPort: 18080
-          Description: Inbound HTTP from Workspaces VPC
-        - IpProtocol: TCP
-          CidrIp: 192.168.16.0/20
-          FromPort: 443
-          ToPort: 443
-          Description: Inbound HTTPS from DR VPC
-        - IpProtocol: TCP
-          CidrIp: 192.168.16.0/20
-          FromPort: 80
-          ToPort: 80
-          Description: Inbound HTTP from DR VPC
-        - IpProtocol: TCP
-          CidrIp: 192.168.16.0/20
-          FromPort: 22
-          ToPort: 22
-          Description: Inbound HTTP from DR VPC
-        - IpProtocol: TCP
-          CidrIp: 10.1.0.0/16
-          FromPort: 38443
-          ToPort: 38443
-          Description: Inbound from ALB in logicsource.net
-        - IpProtocol: TCP
-          CidrIp: 10.1.0.0/16
-          FromPort: 18443
-          ToPort: 18443
-          Description: Inbound from ALB in onemarket
-        - IpProtocol: TCP
-          CidrIp: 10.1.0.0/16
-          FromPort: 18080
-          ToPort: 18080
-          Description: Inbound from ALB in onemarket
-        - IpProtocol: TCP
-          CidrIp: 10.1.0.0/16
-          FromPort: 38080
-          ToPort: 38080
-          Description: Inbound from ALB in logicsource.net
-      SecurityGroupEgress:
-        - Description: Outbound unrestricted traffic
-          IpProtocol: '-1'
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: EC2-p2p-SecurityGroup
-        - Key: Customer
-          Value: !Ref pCustomerName
-        - Key: Environment
-          Value: !Ref pEnvironment
-        - Key: Code Uri
-          Value: !Ref pGitUrl
-        - Key: Application
-          Value: !Ref pApplicationName
-
-  rProApp1Ec2:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !Ref pInstanceId1
-      InstanceType: !Ref pInstanceType
-      Monitoring: true
-      IamInstanceProfile: !Ref rEc2p2pProfile
-      SourceDestCheck: true
-      SubnetId: !Ref pSubnetA
-      SecurityGroupIds:
-        - !Ref rP2pSg
-        - sg-05b8381f91898fbcc
-        - sg-075a57077aaadd17d
-      BlockDeviceMappings:
-      - DeviceName: "/dev/xvda"
-        Ebs:
-          VolumeSize: !Ref pVolumeSize1
-          Encrypted: true
-      Tags:
-        - Key: Name
-          Value: "p2papp-zinc-ec2.logicsource.com"
-        - Key: Customer
           Value: !Ref pCustomerName
         - Key: Environment
           Value: !Ref pEnvironment
@@ -295,11 +169,81 @@ Resources:
       - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
       - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
 
+        rEc2p2pRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub p2p-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy  rEc2p2pRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub p2p-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy  rEc2p2pRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub p2p-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Statement:
+
+
+
+
+
+
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy  rEc2p2pRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub p2p-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      - !Sub arn:${AWS::Partition}:iam::aws:policy/CloudWatchAgentServerPolicy
+
   rEc2p2pProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       InstanceProfileName: !Sub "p2p-IP-${AWS::StackName}"
-      Path: /
+
+
+
+
+
+
+
       Roles:
       - !Ref rEc2p2pRole
 
@@ -307,3 +251,7 @@ Outputs:
   oInstanceId:
     Description: Resource ID of the newly created EC2 instance
     Value: !Ref rProApp1Ec2
+
+
+
+    hey ross did this.
