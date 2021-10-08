@@ -3,3 +3,6 @@
 Source: [https://github.com/rosswickman/aws-automation-workflows](https://github.com/rosswickman/aws-automation-workflows)
 
 https://lab.github.com/githubtraining/devops-with-github-actions
+
+
+test without auth
